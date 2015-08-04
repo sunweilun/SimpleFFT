@@ -13,11 +13,9 @@ protected:
 	{
 		if(size_pwr == 0)
 			return;
-		int size = 1 << size_pwr;
 		int next_size_pwr = size_pwr-1;
 		int next_size = 1 << next_size_pwr;
 		int next_stride_pwr = stride_pwr+1;
-		int next_stride = 1 << next_stride_pwr;
 		int half_size = 1 << (stride_pwr + size_pwr - 1);
 
 		for(int i=0; i<next_size; i++)
@@ -46,8 +44,8 @@ public:
 		int size = 1 << size_pwr;
 		std::complex<Type>* buffer = new std::complex<Type>[size >> 1];
 		std::complex<Type>* w = new std::complex<Type>[size];
-		w[0].real() = 1;
-		w[0].imag() = 0;
+		w[0].real(1);
+		w[0].imag(0);
 		std::complex<Type> j((Type)0.0, (Type)1.0);
 		std::complex<Type> w0 = exp(-j*((Type)(2.0*M_PI)) / ((Type)size));
 		if(inverse)
@@ -79,7 +77,7 @@ public:
 		}
 	}
 
-	static void convolve(const Type* src, const Type* kernel, int w_src, int h_src, int w_kernel, int h_kernel, int stride_w, int stride_h, Type* dst)
+	static void convolve(const Type* src, const Type* kernel, int w_src, int h_src, int w_kernel, int h_kernel, int stride_w, int stride_h, Type* dst, bool inc = false)
 	{
 		int w_max = std::max(w_src, w_kernel);
 		int h_max = std::max(h_src, h_kernel);
@@ -96,15 +94,17 @@ public:
 		{
 			for(int j=0; j<w; j++)
 			{
-				src_freq[i*w+j].real() = src_freq[i*w+j].imag() = 0;
-				kernel_freq[i*w+j].real() = kernel_freq[i*w+j].imag() = 0;
+				src_freq[i*w+j].real(0);
+				src_freq[i*w+j].imag(0);
+				kernel_freq[i*w+j].real(0);
+				kernel_freq[i*w+j].imag(0);
 				if(i < h_src && j < w_src)
 				{
-					src_freq[i*w+j].real() = src[i*w_src+j];
+					src_freq[i*w+j].real(src[i*w_src+j]);
 				}
 				if(i < h_kernel && j < w_kernel)
 				{
-					kernel_freq[i*w+j].real() = kernel[i*w_kernel+j];
+					kernel_freq[i*w+j].real(kernel[i*w_kernel+j]);
 				}
 			}
 		}
@@ -126,7 +126,10 @@ public:
 			{
 				int si = h_kernel - 1 + i * stride_h;
 				int sj = w_kernel - 1 + j * stride_w;
-				dst[i*w_dst+j] = src_freq[si*w+sj].real();
+				if(!inc)
+					dst[i*w_dst+j] = src_freq[si*w+sj].real();
+				else
+					dst[i*w_dst+j] += src_freq[si*w+sj].real();
 			}
 		}
 
