@@ -32,9 +32,12 @@ protected:
 			buffer[i] = x[(i+next_size)<<init_stride_pwr];
 
 		for(int i=0; i<next_size; i++)
-			x[(i+next_size)<<init_stride_pwr] = x[i<<init_stride_pwr]+std::conj(w[(i<<stride_pwr)+half_size]) * buffer[i];
-		for(int i=0; i<next_size; i++)
-			x[i<<init_stride_pwr] += std::conj(w[i<<stride_pwr]) * buffer[i];
+		{
+			std::complex<Type> temp = std::conj(w[(i<<stride_pwr)]) * buffer[i];
+			x[(i+next_size)<<init_stride_pwr] = x[i<<init_stride_pwr]-temp;
+			x[i<<init_stride_pwr] += temp;
+		}
+			
 	}
 public:
 	static void inplace_fft(std::complex<Type>* x, int size_pwr, bool inverse = false, int stride_pwr = 0)
@@ -43,14 +46,14 @@ public:
 			return;
 		int size = 1 << size_pwr;
 		std::complex<Type>* buffer = new std::complex<Type>[size >> 1];
-		std::complex<Type>* w = new std::complex<Type>[size];
+		std::complex<Type>* w = new std::complex<Type>[size >> 1];
 		w[0].real(1);
 		w[0].imag(0);
 		std::complex<Type> j((Type)0.0, (Type)1.0);
 		std::complex<Type> w0 = exp(-j*((Type)(2.0*M_PI)) / ((Type)size));
 		if(inverse)
 			w0 = exp(j*((Type)(2.0*M_PI)) / ((Type)size));
-		for(int i=1; i<size; i++)
+		for(int i=1; i<(size >> 1); i++)
 			w[i] = w[i-1] * w0;
 		inplace_fft(x, buffer, w, 0, size_pwr, stride_pwr);
 		if(inverse)
@@ -77,10 +80,11 @@ public:
 		}
 	}
 
-	static void convolve(const Type* src, const Type* kernel, int w_src, int h_src, int w_kernel, int h_kernel, int stride_w, int stride_h, Type* dst, bool inc = false)
+	static void convolve(const Type* src, const Type* kernel, int w_src, int h_src, int w_kernel, int h_kernel, 
+		int stride_w, int stride_h, Type* dst, bool inc = false, int pad_w = 0, int pad_h = 0)
 	{
-		int w_max = std::max(w_src, w_kernel);
-		int h_max = std::max(h_src, h_kernel);
+		int w_max = std::max(w_src + 2*pad_w, w_kernel);
+		int h_max = std::max(h_src + 2*pad_h, h_kernel);
 		int w_pwr = 0;
 		int h_pwr = 0;
 		while((1 << w_pwr) < w_max) w_pwr++;
@@ -98,9 +102,9 @@ public:
 				src_freq[i*w+j].imag(0);
 				kernel_freq[i*w+j].real(0);
 				kernel_freq[i*w+j].imag(0);
-				if(i < h_src && j < w_src)
+				if(i < h_src + pad_h && j < w_src + pad_w && i >= pad_h && j >= pad_w)
 				{
-					src_freq[i*w+j].real(src[i*w_src+j]);
+					src_freq[i*w+j].real(src[(i-pad_h)*w_src+j-pad_w]);
 				}
 				if(i < h_kernel && j < w_kernel)
 				{
@@ -117,8 +121,8 @@ public:
 
 		inplace_fft2d(src_freq, w_pwr, h_pwr, true);
 
-		int w_dst = (w_src - w_kernel + 1) / stride_w;
-		int h_dst = (h_src - h_kernel + 1) / stride_h;
+		int w_dst = (w_src - w_kernel + 2*pad_w) / stride_w + 1;
+		int h_dst = (h_src - h_kernel + 2*pad_h) / stride_h + 1;
 
 		for(int i=0; i<h_dst; i++)
 		{
